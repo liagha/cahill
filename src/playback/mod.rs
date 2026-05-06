@@ -54,6 +54,10 @@ impl Player {
         self.engine.position()
     }
 
+    pub fn finished(&self) -> bool {
+        self.engine.finished()
+    }
+
     pub fn state(&self) -> State {
         self.engine.state()
     }

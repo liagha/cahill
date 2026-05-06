@@ -16,8 +16,7 @@ fn main() {
                 Config::default().with_window(
                     WindowBuilder::new()
                         .with_title("cahill")
-                        .with_inner_size(LogicalSize::new(420, 640))
-                        .with_resizable(false),
+                        .with_inner_size(LogicalSize::new(420, 640)),
                 ),
             )
             .launch(app::App);

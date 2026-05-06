@@ -61,6 +61,10 @@ impl Engine for RodioEngine {
         self.player.get_pos()
     }
 
+    fn finished(&self) -> bool {
+        self.player.empty()
+    }
+
     fn state(&self) -> State {
         self.state.clone()
     }

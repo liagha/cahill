@@ -20,6 +20,12 @@ impl Queue {
         }
     }
 
+    pub fn jump_to(&mut self, index: usize) {
+        if index < self.tracks.len() {
+            self.cursor = Some(index);
+        }
+    }
+
     pub fn current(&self) -> Option<&Track> {
         self.cursor.and_then(|i| self.tracks.get(i))
     }

@@ -15,5 +15,6 @@ pub trait Engine: Send + Sync {
     fn stop(&mut self);
     fn seek(&mut self, position: Duration);
     fn position(&self) -> Duration;
+    fn finished(&self) -> bool;
     fn state(&self) -> State;
 }
