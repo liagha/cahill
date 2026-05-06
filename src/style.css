@@ -1,0 +1,158 @@
+/* src/style.css */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.shell {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fafafa;
+    padding: 20px;
+}
+
+.card {
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    padding: 36px 32px;
+    width: 100%;
+    max-width: 380px;
+}
+
+.cover {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 28px;
+}
+
+.cover-fallback {
+    width: 180px;
+    height: 180px;
+    background: #f0f0f0;
+    border-radius: 8px;
+}
+
+.meta {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.title {
+    color: #1a1a1a;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.subtitle {
+    color: #8c8c8c;
+    font-size: 13px;
+}
+
+.seek {
+    margin-bottom: 28px;
+}
+
+.seek-bar {
+    width: 100%;
+    height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #e6e6e6;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.seek-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    cursor: pointer;
+}
+
+.seek-bar::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    cursor: pointer;
+    border: none;
+}
+
+.timestamps {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    color: #b3b3b3;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+}
+
+.action {
+    background: none;
+    border: none;
+    color: #4d4d4d;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease;
+}
+
+.action:hover {
+    color: #1a1a1a;
+}
+
+.action.play {
+    width: 52px;
+    height: 52px;
+    background: #1a1a1a;
+    color: #ffffff;
+    border-radius: 50%;
+}
+
+.action.play:hover {
+    background: #333333;
+    color: #ffffff;
+}
+
+@media (max-width: 480px) {
+    .card {
+        padding: 28px 20px;
+    }
+
+    .cover-fallback {
+        width: 150px;
+        height: 150px;
+    }
+
+    .title {
+        font-size: 16px;
+    }
+}
