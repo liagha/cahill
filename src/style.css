@@ -36,11 +36,11 @@ body {
 }
 
 .shell.dark {
-    --background: #121212;
+    --background: #0A0A0A;
     --card: #1e1e1e;
-    --border: #333333;
+    --border: #474747;
     --text: #e0e0e0;
-    --subdued: #aaaaaa;
+    --subdued: #A8A8A8;
     --timestamps: #888888;
     --action: #bbbbbb;
     --action-hover: #ffffff;
