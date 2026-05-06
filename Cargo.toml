@@ -1,0 +1,22 @@
+[package]
+name = "cahill"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["desktop"]
+desktop = ["dioxus/desktop", "dioxus/macro", "dioxus/html", "dioxus/signals", "dioxus/hooks", "dioxus/launch"]
+web = ["dioxus/web", "dioxus/macro", "dioxus/html", "dioxus/signals", "dioxus/hooks"]
+mobile = ["dioxus/mobile", "dioxus/macro", "dioxus/html", "dioxus/signals", "dioxus/hooks"]
+
+[dependencies]
+rfd = { version = "0.17.2" }
+dioxus = { version = "0.7.7", default-features = false }
+symphonia = { version = "0.5", features = ["all"] }
+cpal = "0.17.3"
+tokio = "1.52.2"
+ringbuf = "0.5.0"
+base64 = "0.22.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.4.0", features = ["futures"] }
