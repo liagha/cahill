@@ -1,39 +1,16 @@
+// src/ui/player.rs
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::media::{probe, Meta};
 use crate::playback::{engine::State, Player};
-use super::{controls::Controls, meta::MetaDisplay};
+use super::{controls::Controls, cover::CoverDisplay, meta::MetaDisplay};
 
 fn format_time(raw: f64) -> String {
     let mins = (raw / 60.0) as i32;
     let secs = (raw % 60.0) as i32;
     format!("{:02}:{:02}", mins, secs)
-}
-
-fn cover_src(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    let mut encoded = String::new();
-    let b64 = base64_encode(bytes);
-    write!(encoded, "data:image/jpeg;base64,{}", b64).unwrap();
-    encoded
-}
-
-fn base64_encode(data: &[u8]) -> String {
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
-    for chunk in data.chunks(3) {
-        let b0 = chunk[0] as usize;
-        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
-        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-        let n = (b0 << 16) | (b1 << 8) | b2;
-        out.push(CHARS[(n >> 18) & 0x3f] as char);
-        out.push(CHARS[(n >> 12) & 0x3f] as char);
-        out.push(if chunk.len() > 1 { CHARS[(n >> 6) & 0x3f] as char } else { '=' });
-        out.push(if chunk.len() > 2 { CHARS[n & 0x3f] as char } else { '=' });
-    }
-    out
 }
 
 #[component]
@@ -164,7 +141,7 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
         0.0
     };
 
-    let cover = meta.read().as_ref().and_then(|m| m.cover.clone());
+    let cover_data = meta.read().as_ref().and_then(|m| m.cover.clone());
 
     rsx! {
         div {
@@ -212,18 +189,10 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
                     }
                 }
 
-                div { class: "cover", onclick: open_file, style: "cursor: pointer;",
-                    match cover {
-                        Some(bytes) => rsx! {
-                            img {
-                                class: "cover-art",
-                                src: cover_src(&bytes),
-                            }
-                        },
-                        None => rsx! {
-                            div { class: "cover-fallback" }
-                        },
-                    }
+                CoverDisplay {
+                    cover: cover_data,
+                    dark: dark(),
+                    onclick: open_file,
                 }
 
                 MetaDisplay { meta }

@@ -74,13 +74,6 @@ body {
     margin-bottom: 28px;
 }
 
-.cover-fallback {
-    width: 180px;
-    height: 180px;
-    background: var(--cover-fallback);
-    border-radius: 8px;
-}
-
 .cover-art {
     width: 180px;
     height: 180px;
@@ -198,7 +191,6 @@ body {
         padding: 28px 20px;
     }
 
-    .cover-fallback,
     .cover-art {
         width: 150px;
         height: 150px;
