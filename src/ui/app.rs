@@ -1,3 +1,4 @@
+// src/ui/app.rs
 use crate::player::{Player, PlayerCommand, PlayerEvent, PlayerState};
 use crate::ui::controls::Controls;
 use crate::ui::playlist::Playlist;
@@ -8,11 +9,11 @@ use base64::Engine;
 use dioxus::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-async fn delay(ms: u64) {
+async fn wait(ms: u64) {
     gloo_timers::future::TimeoutFuture::new(ms as u32).await;
 }
 #[cfg(not(target_arch = "wasm32"))]
-async fn delay(ms: u64) {
+async fn wait(ms: u64) {
     tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
 }
 
@@ -32,16 +33,26 @@ pub fn app() -> Element {
             async move {
                 loop {
                     while let Some(event) = player.read().try_recv() {
-                        let PlayerEvent::State(new_state) = event;
-                        if let Some(ref media) = new_state.media {
-                            *current_path.write() = Some(media.path.clone());
-                            let path = media.path.clone();
-                            playlist.write().retain(|m| m.path != path);
-                            playlist.write().push(media.clone());
+                        match event {
+                            PlayerEvent::State(new_state) => {
+                                if let Some(ref media) = new_state.media {
+                                    *current_path.write() = Some(media.path.clone());
+                                    let path = media.path.clone();
+                                    playlist.write().retain(|m| m.path != path);
+                                    playlist.write().push(media.clone());
+                                }
+                                *state.write() = new_state;
+                            }
+                            PlayerEvent::Loaded(media) => {
+                                let path = media.path.clone();
+                                playlist.write().retain(|m| m.path != path);
+                                playlist.write().push(media.clone());
+                                *current_path.write() = Some(path);
+                            }
+                            PlayerEvent::Ended => {}
                         }
-                        *state.write() = new_state;
                     }
-                    delay(16).await;
+                    wait(16).await;
                 }
             }
         });
@@ -65,11 +76,11 @@ pub fn app() -> Element {
                         style: "width:100%;height:100%;object-fit:cover;border-radius:16px;",
                     }
                 } else {
-                    { "🎵" }
+                    div { class: "artwork_fallback", "🎵" }
                 }
             }
 
-            div { class: "track-info",
+            div { class: "track_info",
                 if let Some(ref media) = state.media {
                     div { class: "title", "{media.title}" }
                     div { class: "artist", "{media.artist} · {media.album}" }
@@ -92,17 +103,17 @@ pub fn app() -> Element {
             div { class: "toolbar",
                 button {
                     onclick: {
-                        let player_sender = player_signal.read().sender.clone();
+                        let sender = player_signal.read().sender.clone();
                         move |_| {
-                            let sender = player_sender.clone();
+                            let sender = sender.clone();
                             spawn(async move {
                                 let file = rfd::AsyncFileDialog::new()
                                     .add_filter("Audio", &["mp3", "wav", "flac", "m4a", "ogg"])
                                     .pick_file()
                                     .await;
-                                if let Some(file_handle) = file {
-                                    let path = file_handle.path().to_string_lossy().to_string();
-                                    sender.send(PlayerCommand::Load(path)).ok();
+                                if let Some(handle) = file {
+                                    let path = handle.path().to_string_lossy().to_string();
+                                    sender.send(PlayerCommand::Load(path));
                                 }
                             });
                         }
@@ -111,24 +122,22 @@ pub fn app() -> Element {
                 }
                 button {
                     onclick: {
+                        let player = player_signal.clone();
                         let playlist = playlist_signal.clone();
-                        let player_sender = player_signal.read().sender.clone();
                         move |_| {
+                            let player = player.clone();
                             let mut playlist = playlist.clone();
-                            let sender = player_sender.clone();
                             spawn(async move {
-                                let folder = rfd::AsyncFileDialog::new()
-                                    .pick_folder()
-                                    .await;
-                                if let Some(folder_handle) = folder {
-                                    let dir = folder_handle.path().to_string_lossy().to_string();
+                                let folder = rfd::AsyncFileDialog::new().pick_folder().await;
+                                if let Some(handle) = folder {
+                                    let dir = handle.path().to_string_lossy().to_string();
                                     let tracks = crate::library::scan_directory(&dir);
                                     for track in tracks {
                                         playlist.write().retain(|m| m.path != track.path);
                                         playlist.write().push(track.clone());
                                     }
                                     if let Some(first) = playlist.read().first() {
-                                        sender.send(PlayerCommand::Load(first.path.clone())).ok();
+                                        player.read().send(PlayerCommand::Load(first.path.clone()));
                                     }
                                 }
                             });
@@ -142,8 +151,7 @@ pub fn app() -> Element {
                 list: playlist_signal,
                 current_path: current_path_signal,
                 on_select: move |path: String| {
-                    let sender = player_signal.read().sender.clone();
-                    sender.send(PlayerCommand::Load(path)).ok();
+                    player_signal.read().send(PlayerCommand::Load(path));
                 },
             }
         }

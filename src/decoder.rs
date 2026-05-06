@@ -1,3 +1,4 @@
+// src/decoder.rs
 use std::fs::File;
 use std::time::Duration;
 
@@ -5,7 +6,7 @@ use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::{Decoder as SymphoniaDecoder, DecoderOptions};
 use symphonia::core::formats::{FormatReader, SeekMode, SeekTo};
 use symphonia::core::io::MediaSourceStream;
-use symphonia::core::meta::StandardVisualKey;
+use symphonia::core::meta::{MetadataRevision, StandardTagKey, StandardVisualKey};
 use symphonia::core::probe::Hint;
 use symphonia::core::units::{Time, TimeBase};
 
@@ -87,19 +88,77 @@ impl Decoder for SymphoniaFileDecoder {
     }
 }
 
+fn extract_metadata(format: &mut Box<dyn FormatReader>) -> MediaInfo {
+    let mut title = String::new();
+    let mut artist = String::new();
+    let mut album = String::new();
+    let mut cover = None;
+
+    let mut container = format.metadata();
+    let latest = container.skip_to_latest();
+    let revision: Option<&MetadataRevision> = if latest.is_some() {
+        latest
+    } else {
+        container.current()
+    };
+
+    if let Some(rev) = revision {
+        for tag in rev.tags() {
+            if let Some(std_key) = tag.std_key {
+                match std_key {
+                    StandardTagKey::TrackTitle => {
+                        title = tag.value.to_string();
+                    }
+                    StandardTagKey::Artist
+                    | StandardTagKey::OriginalArtist
+                    | StandardTagKey::AlbumArtist => {
+                        if artist.is_empty() {
+                            artist = tag.value.to_string();
+                        }
+                    }
+                    StandardTagKey::Album => {
+                        album = tag.value.to_string();
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(visual) = rev
+            .visuals()
+            .iter()
+            .find(|v| v.usage == Some(StandardVisualKey::FrontCover))
+        {
+            cover = Some(CoverArt {
+                mime_type: visual.media_type.clone(),
+                data: visual.data.to_vec(),
+            });
+        }
+    }
+
+    MediaInfo {
+        title,
+        artist,
+        album,
+        duration: Duration::ZERO,
+        path: String::new(),
+        cover,
+    }
+}
+
 pub fn open(path: &str) -> Result<SymphoniaFileDecoder, Box<dyn std::error::Error>> {
     let file = File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let hint = Hint::new();
-    let mut probed = symphonia::default::get_probe().format(
+    let probed = symphonia::default::get_probe().format(
         &hint,
         mss,
         &Default::default(),
         &Default::default(),
     )?;
 
-    let format = probed.format;
+    let mut format = probed.format;
     let track = format.default_track().ok_or("no track")?;
     let track_id = track.id;
     let params = track.codec_params.clone();
@@ -109,34 +168,27 @@ pub fn open(path: &str) -> Result<SymphoniaFileDecoder, Box<dyn std::error::Erro
     let duration = params
         .n_frames
         .map(|frames| Duration::from_secs_f64(frames as f64 / sample_rate as f64))
+        .or_else(|| {
+            params.time_base.map(|tb| {
+                let ts = params.n_frames.unwrap_or(0);
+                Duration::from_secs_f64(ts as f64 * tb.numer as f64 / tb.denom as f64)
+            })
+        })
         .unwrap_or(Duration::ZERO);
 
     let time_base = params.time_base;
     let decoder = symphonia::default::get_codecs().make(&params, &DecoderOptions::default())?;
 
-    let mut title = String::new();
-    let mut artist = String::new();
-    let mut album = String::new();
-    let mut cover = None;
+    let mut meta = extract_metadata(&mut format);
+    meta.path = path.to_string();
+    meta.duration = duration;
 
-    if let Some(rev) = probed.metadata.get().unwrap().current() {
-        for tag in rev.tags() {
-            let key = tag.key.to_lowercase();
-            let val = tag.value.to_string();
-            match key.as_str() {
-                "title" => title = val,
-                "artist" => artist = val,
-                "album" => album = val,
-                _ => {}
-            }
-        }
-
-        if let Some(visual) = rev.visuals().iter().find(|v| v.usage == Some(StandardVisualKey::FrontCover)) {
-            cover = Some(CoverArt {
-                mime_type: visual.media_type.clone(),
-                data: visual.data.to_vec(),
-            });
-        }
+    if meta.title.is_empty() {
+        let stem = std::path::Path::new(path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown");
+        meta.title = stem.to_string();
     }
 
     Ok(SymphoniaFileDecoder {
@@ -145,14 +197,7 @@ pub fn open(path: &str) -> Result<SymphoniaFileDecoder, Box<dyn std::error::Erro
         sample_rate,
         channels,
         time_base,
-        meta: MediaInfo {
-            title,
-            artist,
-            album,
-            duration,
-            path: path.to_string(),
-            cover,
-        },
+        meta,
         track_id,
         position: Duration::ZERO,
         duration,

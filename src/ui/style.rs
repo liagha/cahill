@@ -1,3 +1,4 @@
+// src/ui/style.rs
 pub fn css() -> &'static str {
     r#"
 * {
@@ -40,16 +41,21 @@ body {
     overflow: hidden;
     background: linear-gradient(135deg, #e2e2e2, #f0f0f0);
 }
-.track-info {
+.artwork_fallback {
+    font-size: 56px;
+    color: #8e8e93;
+}
+.track_info {
     text-align: center;
     margin-top: 4px;
 }
-.track-info .title {
+.track_info .title {
     font-size: 22px;
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.3;
+    word-break: break-word;
 }
-.track-info .artist {
+.track_info .artist {
     font-size: 15px;
     color: #6e6e73;
     margin-top: 4px;

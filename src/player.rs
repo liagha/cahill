@@ -1,3 +1,4 @@
+// src/player.rs
 use std::sync::mpsc;
 use std::time::Duration;
 use crate::media::MediaInfo;
@@ -16,6 +17,8 @@ pub enum PlayerCommand {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlayerEvent {
     State(PlayerState),
+    Loaded(MediaInfo),
+    Ended,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,26 +80,38 @@ fn run(cmd_rx: mpsc::Receiver<PlayerCommand>, evt_tx: mpsc::Sender<PlayerEvent>)
         match cmd_rx.try_recv() {
             Ok(cmd) => match cmd {
                 PlayerCommand::Load(path) => {
-                    decoder = crate::decoder::open(&path)
-                        .ok()
-                        .map(|d| Box::new(d) as Box<dyn Decoder>);
-                    if let Some(ref dec) = decoder {
-                        state.media = Some(dec.metadata());
-                        state.duration = dec.duration().unwrap_or(Duration::ZERO);
-                        output = Some(crate::output::create_output(
-                            dec.sample_rate(),
-                            dec.channels(),
-                        ));
-                        output.as_ref().unwrap().volume(state.volume);
+                    output = None;
+                    decoder = None;
+                    match crate::decoder::open(&path) {
+                        Ok(dec) => {
+                            let media = dec.metadata();
+                            state.duration = dec.duration().unwrap_or(Duration::ZERO);
+                            state.media = Some(media.clone());
+                            state.position = Duration::ZERO;
+                            state.playing = false;
+                            evt_tx.send(PlayerEvent::Loaded(media)).ok();
+                            let sample_rate = dec.sample_rate();
+                            let channels = dec.channels();
+                            decoder = Some(Box::new(dec) as Box<dyn Decoder>);
+                            let out = crate::output::create_output(sample_rate, channels);
+                            out.volume(state.volume);
+                            output = Some(out);
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to open {}: {}", path, e);
+                            state.media = None;
+                        }
                     }
                     evt_tx.send(PlayerEvent::State(state.clone())).ok();
                 }
                 PlayerCommand::Play => {
-                    state.playing = true;
-                    if let Some(ref out) = output {
-                        out.play();
+                    if decoder.is_some() {
+                        state.playing = true;
+                        if let Some(ref out) = output {
+                            out.play();
+                        }
+                        evt_tx.send(PlayerEvent::State(state.clone())).ok();
                     }
-                    evt_tx.send(PlayerEvent::State(state.clone())).ok();
                 }
                 PlayerCommand::Pause => {
                     state.playing = false;
@@ -110,6 +125,9 @@ fn run(cmd_rx: mpsc::Receiver<PlayerCommand>, evt_tx: mpsc::Sender<PlayerEvent>)
                     state.position = Duration::ZERO;
                     if let Some(ref out) = output {
                         out.stop();
+                    }
+                    if let Some(ref mut dec) = decoder {
+                        dec.seek(Duration::ZERO);
                     }
                     evt_tx.send(PlayerEvent::State(state.clone())).ok();
                 }
@@ -145,11 +163,12 @@ fn run(cmd_rx: mpsc::Receiver<PlayerCommand>, evt_tx: mpsc::Sender<PlayerEvent>)
                     if let Some(ref out) = output {
                         out.stop();
                     }
+                    evt_tx.send(PlayerEvent::Ended).ok();
                     evt_tx.send(PlayerEvent::State(state.clone())).ok();
                 }
             }
         }
 
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(Duration::from_millis(5));
     }
 }
