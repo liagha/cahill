@@ -1,3 +1,11 @@
+@font-face {
+    font-family: 'Mona Sans';
+    src: url('https://github.com/github/mona-sans/raw/main/fonts/webfonts/Mona-Sans.woff2') format('woff2');
+    font-weight: 200 900;
+    font-stretch: 75% 125%;
+    font-display: swap;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -5,26 +13,26 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 .shell {
-    --background: #fafafa;
-    --card: #ffffff;
-    --border: #e6e6e6;
-    --text: #1a1a1a;
-    --subdued: #8c8c8c;
-    --timestamps: #b3b3b3;
-    --action: #4d4d4d;
-    --action-hover: #1a1a1a;
-    --play-bg: #1a1a1a;
-    --play-text: #ffffff;
+    --background: #FAFAFA;
+    --card: #FFFFFF;
+    --border: #E6E6E6;
+    --text: #1A1A1A;
+    --subdued: #8C8C8C;
+    --timestamps: #B3B3B3;
+    --action: #4D4D4D;
+    --action-hover: #1A1A1A;
+    --play-bg: #1A1A1A;
+    --play-text: #FFFFFF;
     --play-hover-bg: #333333;
-    --cover-fallback: #f0f0f0;
-    --seek-track: #e6e6e6;
-    --thumb: #1a1a1a;
+    --cover-fallback: #F0F0F0;
+    --seek-track: #E6E6E6;
+    --thumb: #1A1A1A;
 
     min-height: 100vh;
     display: flex;
@@ -37,19 +45,19 @@ body {
 
 .shell.dark {
     --background: #0A0A0A;
-    --card: #1e1e1e;
+    --card: #1E1E1E;
     --border: #474747;
-    --text: #e0e0e0;
+    --text: #E0E0E0;
     --subdued: #A8A8A8;
     --timestamps: #888888;
-    --action: #bbbbbb;
-    --action-hover: #ffffff;
-    --play-bg: #e0e0e0;
-    --play-text: #1e1e1e;
-    --play-hover-bg: #ffffff;
-    --cover-fallback: #2a2a2a;
+    --action: #BBBBBB;
+    --action-hover: #FFFFFF;
+    --play-bg: #E0E0E0;
+    --play-text: #1E1E1E;
+    --play-hover-bg: #FFFFFF;
+    --cover-fallback: #2A2A2A;
     --seek-track: #333333;
-    --thumb: #e0e0e0;
+    --thumb: #E0E0E0;
 }
 
 .card {
@@ -100,6 +108,7 @@ body {
 .subtitle {
     color: var(--subdued);
     font-size: 13px;
+    font-weight: 400;
 }
 
 .seek {
@@ -146,6 +155,7 @@ body {
     color: var(--timestamps);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+    font-weight: 450;
 }
 
 .actions {

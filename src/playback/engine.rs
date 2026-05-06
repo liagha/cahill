@@ -12,7 +12,6 @@ pub trait Engine: Send + Sync {
     fn load(&mut self, path: &Path) -> Result<(), String>;
     fn play(&mut self);
     fn pause(&mut self);
-    fn stop(&mut self);
     fn seek(&mut self, position: Duration);
     fn position(&self) -> Duration;
     fn finished(&self) -> bool;

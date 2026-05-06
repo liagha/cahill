@@ -20,32 +20,32 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
     let mut elapsed = use_signal(|| 0.0f64);
     let mut duration = use_signal(|| 0.0f64);
 
-    let mut state_writer = state.clone();
-    let mut meta_writer = meta.clone();
-    let mut duration_writer = duration.clone();
+    use_future(move || {
+        let player = player.clone();
+        async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                let binding = player.read();
+                let mut p = binding.lock().unwrap();
 
-    use_future(move || async move {
-        loop {
-            tokio::time::sleep(Duration::from_millis(250)).await;
-            let binding = player.read();
-            let mut p = binding.lock().unwrap();
-            if p.state() == State::Playing {
+                if p.state() != State::Playing {
+                    continue;
+                }
+
                 elapsed.set(p.position().as_secs_f64());
 
-                if p.finished() {
-                    let next_path = p.queue.next().map(|t| t.meta.path.clone());
-                    if let Some(path) = next_path {
+                if p.finished() && !p.queue.is_empty() {
+                    p.queue.advance();
+                    if let Some(current) = p.queue.current() {
+                        let path = current.meta.path.clone();
+                        let meta_val = current.meta.clone();
+                        let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+
                         let _ = p.open(&path);
-                        if let Some(current_track) = p.queue.current() {
-                            let meta_val = current_track.meta.clone();
-                            meta_writer.set(Some(meta_val.clone()));
-                            let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-                            duration_writer.set(dur);
-                            elapsed.set(0.0);
-                            state_writer.set(State::Playing);
-                        }
-                    } else {
-                        state_writer.set(State::Stopped);
+                        meta.set(Some(meta_val));
+                        duration.set(dur);
+                        elapsed.set(0.0);
+                        state.set(State::Playing);
                     }
                 }
             }
@@ -57,8 +57,9 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
         move |_| {
             let binding = player.read();
             let mut p = binding.lock().unwrap();
-            p.toggle();
-            state.set(p.state());
+            if let Ok(new_state) = p.toggle() {
+                state.set(new_state);
+            }
         }
     };
 
@@ -71,27 +72,22 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
 
             if let Some(path) = picked {
                 if let Some(track) = probe::load(&path) {
-                    let meta_clone = track.meta.clone();
-                    let dur = meta_clone.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                    let binding = player.read();
+                    let mut p = binding.lock().unwrap();
+                    let index = p.queue.len();
+                    p.queue.push(track);
+                    p.queue.set_cursor(index);
 
-                    let (new_index, open_path) = {
-                        let binding = player.read();
-                        let mut p = binding.lock().unwrap();
-                        let idx = p.queue.len();
-                        p.queue.push(track);
-                        p.queue.jump_to(idx);
-                        let current = p.queue.current().map(|t| t.meta.path.clone());
-                        (idx, current)
-                    };
+                    if let Some(current) = p.queue.current() {
+                        let meta_val = current.meta.clone();
+                        let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                        let path = current.meta.path.clone();
 
-                    if let Some(path) = open_path {
-                        let binding = player.read();
-                        let mut p = binding.lock().unwrap();
                         let _ = p.open(&path);
-                        state.set(State::Playing);
-                        meta.set(Some(meta_clone));
+                        meta.set(Some(meta_val));
                         duration.set(dur);
                         elapsed.set(0.0);
+                        state.set(State::Playing);
                     }
                 }
             }
@@ -103,14 +99,16 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
         move |_| {
             let binding = player.read();
             let mut p = binding.lock().unwrap();
-            if let Some(path) = p.queue.prev().map(|t| t.meta.path.clone()) {
-                p.open(&path).ok();
-                if let Some(current) = p.queue.current() {
-                    let meta_val = current.meta.clone();
-                    meta.set(Some(meta_val.clone()));
-                    duration.set(meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0));
-                    elapsed.set(0.0);
-                }
+            p.queue.retreat();
+            if let Some(current) = p.queue.current() {
+                let path = current.meta.path.clone();
+                let meta_val = current.meta.clone();
+                let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+
+                let _ = p.open(&path);
+                meta.set(Some(meta_val));
+                duration.set(dur);
+                elapsed.set(0.0);
                 state.set(State::Playing);
             }
         }
@@ -121,14 +119,16 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
         move |_| {
             let binding = player.read();
             let mut p = binding.lock().unwrap();
-            if let Some(path) = p.queue.next().map(|t| t.meta.path.clone()) {
-                p.open(&path).ok();
-                if let Some(current) = p.queue.current() {
-                    let meta_val = current.meta.clone();
-                    meta.set(Some(meta_val.clone()));
-                    duration.set(meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0));
-                    elapsed.set(0.0);
-                }
+            p.queue.advance();
+            if let Some(current) = p.queue.current() {
+                let path = current.meta.path.clone();
+                let meta_val = current.meta.clone();
+                let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+
+                let _ = p.open(&path);
+                meta.set(Some(meta_val));
+                duration.set(dur);
+                elapsed.set(0.0);
                 state.set(State::Playing);
             }
         }
@@ -207,7 +207,8 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
                         oninput: move |evt| {
                             if let Ok(value) = evt.value().parse::<f64>() {
                                 elapsed.set(value);
-                                player.read().lock().unwrap().seek(Duration::from_secs_f64(value));
+                                let binding = player.read();
+                                binding.lock().unwrap().seek(Duration::from_secs_f64(value));
                             }
                         }
                     }

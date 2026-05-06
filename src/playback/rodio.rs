@@ -18,6 +18,7 @@ impl RodioEngine {
         let stream = Arc::new(
             DeviceSinkBuilder::open_default_sink().map_err(|e| e.to_string())?
         );
+
         let player = Player::connect_new(stream.mixer());
         Ok(Self {
             player,
@@ -46,11 +47,6 @@ impl Engine for RodioEngine {
     fn pause(&mut self) {
         self.player.pause();
         self.state = State::Paused;
-    }
-
-    fn stop(&mut self) {
-        self.player.stop();
-        self.state = State::Stopped;
     }
 
     fn seek(&mut self, position: Duration) {

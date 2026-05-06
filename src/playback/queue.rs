@@ -2,51 +2,64 @@ use crate::media::Track;
 
 pub struct Queue {
     tracks: Vec<Track>,
-    cursor: Option<usize>,
+    cursor: usize,
 }
 
 impl Queue {
     pub fn new() -> Self {
         Self {
             tracks: Vec::new(),
-            cursor: None,
+            cursor: 0,
         }
     }
 
     pub fn push(&mut self, track: Track) {
         self.tracks.push(track);
-        if self.cursor.is_none() {
-            self.cursor = Some(0);
-        }
     }
 
-    pub fn jump_to(&mut self, index: usize) {
-        if index < self.tracks.len() {
-            self.cursor = Some(index);
-        }
-    }
-
-    pub fn current(&self) -> Option<&Track> {
-        self.cursor.and_then(|i| self.tracks.get(i))
-    }
-
-    pub fn next(&mut self) -> Option<&Track> {
-        let next = self.cursor.map(|i| i + 1).filter(|&i| i < self.tracks.len());
-        self.cursor = next;
-        self.current()
-    }
-
-    pub fn prev(&mut self) -> Option<&Track> {
-        let prev = self.cursor.and_then(|i| i.checked_sub(1));
-        self.cursor = prev;
-        self.current()
+    pub fn len(&self) -> usize {
+        self.tracks.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.tracks.is_empty()
     }
 
-    pub fn len(&self) -> usize {
-        self.tracks.len()
+    pub fn set_cursor(&mut self, index: usize) {
+        if index < self.tracks.len() {
+            self.cursor = index;
+        }
+    }
+
+    pub fn cursor(&self) -> Option<usize> {
+        if self.tracks.is_empty() {
+            None
+        } else {
+            Some(self.cursor)
+        }
+    }
+
+    pub fn current(&self) -> Option<&Track> {
+        if self.tracks.is_empty() {
+            None
+        } else {
+            self.tracks.get(self.cursor)
+        }
+    }
+
+    pub fn advance(&mut self) -> Option<&Track> {
+        if self.tracks.is_empty() {
+            return None;
+        }
+        self.cursor = (self.cursor + 1) % self.tracks.len();
+        self.tracks.get(self.cursor)
+    }
+
+    pub fn retreat(&mut self) -> Option<&Track> {
+        if self.tracks.is_empty() {
+            return None;
+        }
+        self.cursor = self.cursor.checked_sub(1).unwrap_or(self.tracks.len() - 1);
+        self.tracks.get(self.cursor)
     }
 }

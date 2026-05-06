@@ -39,10 +39,16 @@ impl Player {
         self.engine.pause();
     }
 
-    pub fn toggle(&mut self) {
+    pub fn toggle(&mut self) -> Result<State, String> {
         match self.engine.state() {
-            State::Playing => self.pause(),
-            _ => self.play(),
+            State::Playing => {
+                self.engine.pause();
+                Ok(State::Paused)
+            }
+            State::Paused | State::Stopped => {
+                self.engine.play();
+                Ok(State::Playing)
+            }
         }
     }
 

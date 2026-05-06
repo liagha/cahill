@@ -26,21 +26,6 @@ impl Meta {
     }
 }
 
-pub trait Playable: Send + Sync {
-    fn meta(&self) -> &Meta;
-    fn path(&self) -> &std::path::Path;
-}
-
 pub struct Track {
     pub meta: Meta,
-}
-
-impl Playable for Track {
-    fn meta(&self) -> &Meta {
-        &self.meta
-    }
-
-    fn path(&self) -> &std::path::Path {
-        &self.meta.path
-    }
 }
