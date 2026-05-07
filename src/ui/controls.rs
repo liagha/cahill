@@ -3,12 +3,12 @@ use crate::playback::engine::State;
 
 #[component]
 pub fn Controls(
-    state: ReadSignal<State>,
+    state: State,
     on_toggle: EventHandler<()>,
     on_prev: EventHandler<()>,
     on_next: EventHandler<()>,
 ) -> Element {
-    let playing = *state.read() == State::Playing;
+    let playing = state == State::Playing;
 
     rsx! {
         div { class: "actions",

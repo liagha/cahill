@@ -7,8 +7,9 @@ use crate::playback::{engine::State, Player};
 use super::{controls::Controls, cover::CoverDisplay, meta::MetaDisplay};
 
 fn format_time(raw: f64) -> String {
-    let mins = (raw / 60.0) as i32;
-    let secs = (raw % 60.0) as i32;
+    let total_secs = raw as u64;
+    let mins = (total_secs / 60) as u32;
+    let secs = (total_secs % 60) as u32;
     format!("{:02}:{:02}", mins, secs)
 }
 
@@ -20,105 +21,107 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
     let mut elapsed = use_signal(|| 0.0f64);
     let mut duration = use_signal(|| 0.0f64);
     let mut seek_fill = use_signal(|| 0.0f64);
+    let mut seeking = use_signal(|| false);
 
-    let player_clone = player.clone();
-    use_future(move || async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(50));
-        loop {
-            interval.tick().await;
-            let binding = player_clone.read();
-            let p = binding.lock().unwrap();
-
-            if p.state() != State::Playing {
-                continue;
-            }
-
-            let pos = p.position().as_secs_f64();
-            if (pos - elapsed()).abs() > 0.01 {
-                elapsed.set(pos);
-            }
-
-            if p.finished() && !p.queue.is_empty() {
-                drop(p);
-                drop(binding);
-                let binding = player_clone.read();
+    use_future({
+        let player = player.clone();
+        move || async move {
+            let mut tick = tokio::time::interval(Duration::from_millis(100));
+            loop {
+                tick.tick().await;
+                let binding = player.read();
                 let mut p = binding.lock().unwrap();
-                p.queue.advance();
-                if let Some(current) = p.queue.current() {
-                    let path = current.meta.path.clone();
-                    let meta_val = current.meta.clone();
-                    let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-                    let _ = p.open(&path);
-                    meta.set(Some(meta_val));
-                    duration.set(dur);
-                    elapsed.set(0.0);
-                    state.set(State::Playing);
+
+                let current_state = p.state();
+                state.set(current_state.clone());
+
+                if !seeking() {
+                    let pos = p.position().as_secs_f64();
+                    elapsed.set(pos);
+
+                    let dur = duration();
+                    if dur > 0.0 {
+                        seek_fill.set((pos / dur) * 100.0);
+                    }
+                }
+
+                if p.finished() && !p.queue.is_empty() {
+                    if let Some(next) = p.queue.advance() {
+                        let meta_clone = next.meta.clone();
+                        let dur = meta_clone.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                        let path = next.meta.path.clone();
+                        let _ = p.open(&path);
+                        drop(p);
+                        meta.set(Some(meta_clone));
+                        duration.set(dur);
+                        elapsed.set(0.0);
+                        seek_fill.set(0.0);
+                        state.set(State::Playing);
+                        continue;
+                    }
                 }
             }
         }
     });
 
-    let player_clone = player.clone();
-    use_future(move || async move {
-        loop {
-            tokio::time::sleep(Duration::from_millis(16)).await;
-            let dur = duration();
-            if dur > 0.0 {
-                let fill = (elapsed() / dur) * 100.0;
-                seek_fill.set(fill);
-            }
-        }
-    });
-
-    let open_file = {
+    let load_track = {
         let player = player.clone();
-        move |_| {
-            let picked = rfd::FileDialog::new()
-                .add_filter("Audio", &["mp3", "flac", "wav", "ogg", "aac", "m4a"])
-                .pick_file();
+        move |file_path: &std::path::Path| {
+            if let Some(track) = probe::load(file_path) {
+                let binding = player.read();
+                let mut p = binding.lock().unwrap();
+                let idx = p.queue.len();
+                p.queue.push(track);
+                p.queue.set_cursor(idx);
 
-            if let Some(path) = picked {
-                if let Some(track) = probe::load(&path) {
-                    let binding = player.read();
-                    let mut p = binding.lock().unwrap();
-                    let index = p.queue.len();
-                    p.queue.push(track);
-                    p.queue.set_cursor(index);
-
-                    if let Some(current) = p.queue.current() {
-                        let meta_val = current.meta.clone();
-                        let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-                        let path = current.meta.path.clone();
-
-                        let _ = p.open(&path);
-                        meta.set(Some(meta_val));
-                        duration.set(dur);
-                        elapsed.set(0.0);
-                        state.set(State::Playing);
-                    }
+                if let Some(current) = p.queue.current() {
+                    let meta_clone = current.meta.clone();
+                    let dur = meta_clone.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                    let path = current.meta.path.clone();
+                    let _ = p.open(&path);
+                    meta.set(Some(meta_clone));
+                    duration.set(dur);
+                    elapsed.set(0.0);
+                    seek_fill.set(0.0);
+                    state.set(State::Playing);
                 }
             }
         }
     };
 
-    let switch_track = move |player: Signal<Arc<Mutex<Player>>>, direction: i32| {
-        let binding = player.read();
-        let mut p = binding.lock().unwrap();
-        if direction < 0 {
-            p.queue.retreat();
-        } else {
-            p.queue.advance();
+    let mut open_file = {
+        let mut load_track = load_track.clone();
+        move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Audio", &["mp3", "flac", "wav", "ogg", "aac", "m4a"])
+                .pick_file()
+            {
+                load_track(&path);
+            }
         }
-        if let Some(current) = p.queue.current() {
-            let path = current.meta.path.clone();
-            let meta_val = current.meta.clone();
-            let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+    };
 
-            let _ = p.open(&path);
-            meta.set(Some(meta_val));
-            duration.set(dur);
-            elapsed.set(0.0);
-            state.set(State::Playing);
+    let switch = {
+        let player = player.clone();
+        move |direction: i32| {
+            let binding = player.read();
+            let mut p = binding.lock().unwrap();
+            let jumped = if direction < 0 {
+                p.queue.retreat()
+            } else {
+                p.queue.advance()
+            };
+            if let Some(current) = jumped.cloned().or_else(|| p.queue.current().cloned()) {
+                let path = current.meta.path.clone();
+                let meta_clone = current.meta.clone();
+                let dur = meta_clone.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                let _ = p.open(&path);
+                meta.set(Some(meta_clone));
+                duration.set(dur);
+                elapsed.set(0.0);
+                seek_fill.set(0.0);
+                state.set(State::Playing);
+            }
         }
     };
 
@@ -127,22 +130,57 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
         move |_| {
             let binding = player.read();
             let mut p = binding.lock().unwrap();
-            if let Ok(new_state) = p.toggle() {
-                state.set(new_state);
+            if let Ok(s) = p.toggle() {
+                state.set(s);
             }
         }
     };
 
     let prev = {
-        let player = player.clone();
-        let mut switch = switch_track.clone();
-        move |_| switch(player.clone(), -1)
+        let mut switch = switch.clone();
+        move |_| switch(-1)
     };
 
     let next = {
+        let mut switch = switch.clone();
+        move |_| switch(1)
+    };
+
+    let seek_start = {
+        let mut seeking = seeking.clone();
+        move |_| {
+            seeking.set(true);
+        }
+    };
+
+    let mut seek_move = {
+        let mut elapsed = elapsed.clone();
+        let mut seek_fill = seek_fill.clone();
+        let duration = duration.clone();
+        move |value: f64| {
+            elapsed.set(value);
+            let dur = duration();
+            if dur > 0.0 {
+                seek_fill.set((value / dur) * 100.0);
+            }
+        }
+    };
+
+    let mut seek_end = {
         let player = player.clone();
-        let mut switch = switch_track.clone();
-        move |_| switch(player.clone(), 1)
+        let mut seeking = seeking.clone();
+        move |value: f64| {
+            let binding = player.read();
+            let mut p = binding.lock().unwrap();
+            p.seek(Duration::from_secs_f64(value));
+            let actual_pos = p.position().as_secs_f64();
+            elapsed.set(actual_pos);
+            let dur = duration();
+            if dur > 0.0 {
+                seek_fill.set((actual_pos / dur) * 100.0);
+            }
+            seeking.set(false);
+        }
     };
 
     let cover_data = meta.read().as_ref().and_then(|m| m.cover.clone());
@@ -196,10 +234,10 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
                 CoverDisplay {
                     cover: cover_data,
                     dark: dark(),
-                    onclick: open_file,
+                    onclick: move |_| open_file(),
                 }
 
-                MetaDisplay { meta }
+                MetaDisplay { meta: meta.read().clone() }
 
                 div { class: "seek",
                     input {
@@ -208,11 +246,17 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
                         min: "0",
                         max: "{duration()}",
                         value: "{elapsed()}",
+                        step: "0.01",
                         style: "--seek-fill: {seek_fill}%",
+                        onmousedown: seek_start,
                         oninput: move |evt| {
-                            if let Ok(value) = evt.value().parse::<f64>() {
-                                let binding = player.read();
-                                binding.lock().unwrap().seek(Duration::from_secs_f64(value));
+                            if let Ok(v) = evt.value().parse::<f64>() {
+                                seek_move(v);
+                            }
+                        },
+                        onchange: move |evt| {
+                            if let Ok(v) = evt.value().parse::<f64>() {
+                                seek_end(v);
                             }
                         }
                     }
@@ -223,7 +267,7 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
                 }
 
                 Controls {
-                    state,
+                    state: state(),
                     on_toggle: toggle,
                     on_prev: prev,
                     on_next: next,

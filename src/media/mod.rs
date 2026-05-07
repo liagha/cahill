@@ -26,6 +26,7 @@ impl Meta {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Track {
     pub meta: Meta,
 }

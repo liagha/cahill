@@ -27,7 +27,7 @@ impl Player {
         })
     }
 
-    pub fn open(&mut self, path: &Path) -> Result<(), String> {
+    pub fn open(&mut self, path: &Path) -> Result<Duration, String> {
         self.engine.load(path)
     }
 
@@ -66,5 +66,9 @@ impl Player {
 
     pub fn state(&self) -> State {
         self.engine.state()
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.engine.duration()
     }
 }
