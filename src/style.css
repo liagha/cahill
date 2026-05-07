@@ -16,6 +16,9 @@ body {
     font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .shell {
@@ -68,6 +71,8 @@ body {
     width: 100%;
     max-width: 380px;
     position: relative;
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .theme-toggle {
@@ -128,6 +133,8 @@ body {
     border-radius: 2px;
     outline: none;
     cursor: pointer;
+    transform: translateZ(0);
+    will-change: background;
 }
 
 .seek-bar::-webkit-slider-thumb {
@@ -137,6 +144,7 @@ body {
     border-radius: 50%;
     background: var(--thumb);
     cursor: pointer;
+    transform: translateZ(0);
 }
 
 .seek-bar::-moz-range-thumb {
@@ -176,7 +184,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.15s ease;
+    transition: color 0.15s ease, transform 0.1s ease;
+    transform: translateZ(0);
+}
+
+.action:active {
+    transform: scale(0.95);
 }
 
 .action:hover {
@@ -194,6 +207,10 @@ body {
 .action.play:hover {
     background: var(--play-hover-bg);
     color: var(--play-text);
+}
+
+.action.play:active {
+    transform: scale(0.95);
 }
 
 @media (max-width: 480px) {

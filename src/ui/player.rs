@@ -19,49 +19,56 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
     let mut meta = use_signal(|| Option::<Meta>::None);
     let mut elapsed = use_signal(|| 0.0f64);
     let mut duration = use_signal(|| 0.0f64);
+    let mut seek_fill = use_signal(|| 0.0f64);
 
-    use_future(move || {
-        let player = player.clone();
-        async move {
-            loop {
-                tokio::time::sleep(Duration::from_millis(250)).await;
-                let binding = player.read();
+    let player_clone = player.clone();
+    use_future(move || async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(50));
+        loop {
+            interval.tick().await;
+            let binding = player_clone.read();
+            let p = binding.lock().unwrap();
+
+            if p.state() != State::Playing {
+                continue;
+            }
+
+            let pos = p.position().as_secs_f64();
+            if (pos - elapsed()).abs() > 0.01 {
+                elapsed.set(pos);
+            }
+
+            if p.finished() && !p.queue.is_empty() {
+                drop(p);
+                drop(binding);
+                let binding = player_clone.read();
                 let mut p = binding.lock().unwrap();
-
-                if p.state() != State::Playing {
-                    continue;
-                }
-
-                elapsed.set(p.position().as_secs_f64());
-
-                if p.finished() && !p.queue.is_empty() {
-                    p.queue.advance();
-                    if let Some(current) = p.queue.current() {
-                        let path = current.meta.path.clone();
-                        let meta_val = current.meta.clone();
-                        let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-
-                        let _ = p.open(&path);
-                        meta.set(Some(meta_val));
-                        duration.set(dur);
-                        elapsed.set(0.0);
-                        state.set(State::Playing);
-                    }
+                p.queue.advance();
+                if let Some(current) = p.queue.current() {
+                    let path = current.meta.path.clone();
+                    let meta_val = current.meta.clone();
+                    let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                    let _ = p.open(&path);
+                    meta.set(Some(meta_val));
+                    duration.set(dur);
+                    elapsed.set(0.0);
+                    state.set(State::Playing);
                 }
             }
         }
     });
 
-    let toggle = {
-        let player = player.clone();
-        move |_| {
-            let binding = player.read();
-            let mut p = binding.lock().unwrap();
-            if let Ok(new_state) = p.toggle() {
-                state.set(new_state);
+    let player_clone = player.clone();
+    use_future(move || async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(16)).await;
+            let dur = duration();
+            if dur > 0.0 {
+                let fill = (elapsed() / dur) * 100.0;
+                seek_fill.set(fill);
             }
         }
-    };
+    });
 
     let open_file = {
         let player = player.clone();
@@ -94,50 +101,48 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
         }
     };
 
-    let prev = {
+    let switch_track = move |player: Signal<Arc<Mutex<Player>>>, direction: i32| {
+        let binding = player.read();
+        let mut p = binding.lock().unwrap();
+        if direction < 0 {
+            p.queue.retreat();
+        } else {
+            p.queue.advance();
+        }
+        if let Some(current) = p.queue.current() {
+            let path = current.meta.path.clone();
+            let meta_val = current.meta.clone();
+            let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+
+            let _ = p.open(&path);
+            meta.set(Some(meta_val));
+            duration.set(dur);
+            elapsed.set(0.0);
+            state.set(State::Playing);
+        }
+    };
+
+    let toggle = {
         let player = player.clone();
         move |_| {
             let binding = player.read();
             let mut p = binding.lock().unwrap();
-            p.queue.retreat();
-            if let Some(current) = p.queue.current() {
-                let path = current.meta.path.clone();
-                let meta_val = current.meta.clone();
-                let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-
-                let _ = p.open(&path);
-                meta.set(Some(meta_val));
-                duration.set(dur);
-                elapsed.set(0.0);
-                state.set(State::Playing);
+            if let Ok(new_state) = p.toggle() {
+                state.set(new_state);
             }
         }
+    };
+
+    let prev = {
+        let player = player.clone();
+        let mut switch = switch_track.clone();
+        move |_| switch(player.clone(), -1)
     };
 
     let next = {
         let player = player.clone();
-        move |_| {
-            let binding = player.read();
-            let mut p = binding.lock().unwrap();
-            p.queue.advance();
-            if let Some(current) = p.queue.current() {
-                let path = current.meta.path.clone();
-                let meta_val = current.meta.clone();
-                let dur = meta_val.duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-
-                let _ = p.open(&path);
-                meta.set(Some(meta_val));
-                duration.set(dur);
-                elapsed.set(0.0);
-                state.set(State::Playing);
-            }
-        }
-    };
-
-    let ratio = if duration() > 0.0 {
-        (elapsed() / duration()) * 100.0
-    } else {
-        0.0
+        let mut switch = switch_track.clone();
+        move |_| switch(player.clone(), 1)
     };
 
     let cover_data = meta.read().as_ref().and_then(|m| m.cover.clone());
@@ -203,10 +208,9 @@ pub fn PlayerCard(player: Signal<Arc<Mutex<Player>>>) -> Element {
                         min: "0",
                         max: "{duration()}",
                         value: "{elapsed()}",
-                        style: "--seek-fill: {ratio}%",
+                        style: "--seek-fill: {seek_fill}%",
                         oninput: move |evt| {
                             if let Ok(value) = evt.value().parse::<f64>() {
-                                elapsed.set(value);
                                 let binding = player.read();
                                 binding.lock().unwrap().seek(Duration::from_secs_f64(value));
                             }
