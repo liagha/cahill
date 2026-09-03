@@ -1,19 +1,8 @@
-[package]
-name = "cahill"
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/cli", "crates/engine"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
-
-[features]
-default = ["desktop"]
-desktop = ["dioxus/desktop", "rodio", "symphonia"]
-web = ["dioxus/web"]
-mobile = ["dioxus/mobile"]
-
-[dependencies]
-dioxus = "0.7.7"
-tokio = { version = "1", features = ["full"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rodio = { version = "0.22.2", default-features = false, features = ["symphonia-all", "playback"], optional = true }
-symphonia = { version = "0.5.5", features = ["all"], optional = true }
-rfd = "0.17.2"
+license = "MIT"

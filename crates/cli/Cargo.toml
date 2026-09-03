@@ -1,0 +1,11 @@
+[package]
+name = "cahill-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cahill command-line frontend for testing the core"
+
+[dependencies]
+cahill-core = { path = "../core" }
+cahill-engine = { path = "../engine" }
+

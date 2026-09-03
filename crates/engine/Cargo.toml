@@ -1,0 +1,17 @@
+[package]
+name = "cahill-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cahill playback engine: probe, resolve, decode and output audio"
+
+[features]
+default = ["play"]
+play = ["dep:cpal", "dep:rubato"]
+
+[dependencies]
+cahill-core = { path = "../core" }
+symphonia = { version = "0.5.4", features = ["all"] }
+
+cpal = { version = "0.16", optional = true }
+rubato = { version = "0.16", optional = true }
